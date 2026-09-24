@@ -1,9 +1,9 @@
 import os
 import tempfile
 
-from .detector import find_date_in_pdf
-from .cleaner import clean_pdf
-from .writer import add_date_text
+from detector import find_date_in_pdf
+from cleaner import clean_pdf
+from writer import add_date_text
 
 
 def process_pdf(
