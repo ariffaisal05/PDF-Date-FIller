@@ -1,3 +1,0 @@
-"""
-PDF Interactive Cleaner package.
-"""
