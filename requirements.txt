@@ -3,4 +3,3 @@ PyMuPDF
 pypdf
 pandas
 openpyxl
-base64
