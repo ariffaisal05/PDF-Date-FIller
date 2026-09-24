@@ -3,10 +3,8 @@ PyMuPDF
 pypdf
 pandas
 openpyxl
-re
 base64
 hashlib
 json
 os
 tempfile
-datetime
