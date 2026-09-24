@@ -150,13 +150,7 @@ if uploaded_files:
                     mime="application/pdf",
                     key=f"download_{signature}_{index}",
                 )
-                encoded = base64.b64encode(item["data"]).decode("ascii")
-                st.markdown(
-                    f'<iframe src="data:application/pdf;base64,{encoded}" '
-                    'width="100%" height="600" style="border:1px solid #ddd; '
-                    'border-radius:8px"></iframe>',
-                    unsafe_allow_html=True,
-                )
+                st.pdf(item["data"], height=600)
 
         if successful:
             st.divider()
