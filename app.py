@@ -8,7 +8,7 @@ from datetime import date
 import streamlit as st
 import streamlit.components.v1 as components
 
-from pdf_processor.processor import process_pdf
+from processor import process_pdf
 
 
 st.set_page_config(page_title="PDF Date Filler", page_icon="📄", layout="centered")
