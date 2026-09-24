@@ -1,7 +1,7 @@
 import pymupdf
 
 
-CALIBRI_FONT_PATH = "/Users/mariff/Desktop/Intern project/PDFcleaner/calibri.ttf"
+CALIBRI_FONT_PATH = "calibri.ttf"
 
 
 def add_date_text(input_path, output_path, page_number, label_rects, date_parts):
