@@ -5,6 +5,3 @@ pandas
 openpyxl
 base64
 hashlib
-json
-os
-tempfile
