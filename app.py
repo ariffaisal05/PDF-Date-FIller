@@ -5,6 +5,7 @@ import os
 import tempfile
 from datetime import date
 
+import pymupdf
 import streamlit as st
 import streamlit.components.v1 as components
 
