@@ -10,7 +10,6 @@ import streamlit.components.v1 as components
 
 from processor import process_pdf
 
-
 st.set_page_config(page_title="PDF Date Filler", page_icon="📄", layout="centered")
 st.title("📄 PDF Date Filler")
 st.write(
@@ -67,6 +66,37 @@ def make_download_all_html(files):
       }});
     </script>
     """
+
+
+@st.cache_data(show_spinner=False)
+def render_pdf_page(pdf_data, page_index):
+    with pymupdf.open(stream=pdf_data, filetype="pdf") as doc:
+        pixmap = doc[page_index].get_pixmap(
+            matrix=pymupdf.Matrix(1.5, 1.5), alpha=False
+        )
+        return pixmap.tobytes("png")
+
+
+def show_pdf_preview(pdf_data, key):
+    """Render one selectable PDF page as an image for broad browser support."""
+    with pymupdf.open(stream=pdf_data, filetype="pdf") as doc:
+        page_count = len(doc)
+
+    if page_count > 1:
+        page_number = st.selectbox(
+            "Preview page",
+            options=range(1, page_count + 1),
+            key=f"{key}_page",
+        )
+    else:
+        page_number = 1
+        st.caption("Preview · page 1 of 1")
+
+    st.image(
+        render_pdf_page(pdf_data, page_number - 1),
+        caption=f"Page {page_number} of {page_count}",
+        use_container_width=True,
+    )
 
 
 if uploaded_files:
@@ -128,7 +158,9 @@ if uploaded_files:
         for index, item in enumerate(saved["files"]):
             result = item["result"]
             title = f"{item['source']} — {'Ready' if result['success'] else 'Needs attention'}"
-            with st.expander(title, expanded=not result["success"]):
+            # Keep result panels open so the page selector stays visible after
+            # its interaction triggers Streamlit's normal script rerun.
+            with st.expander(title, expanded=True):
                 if not result["success"]:
                     st.error(result["message"])
                     continue
@@ -150,7 +182,9 @@ if uploaded_files:
                     mime="application/pdf",
                     key=f"download_{signature}_{index}",
                 )
-                st.pdf(item["data"], height=600)
+                show_pdf_preview(
+                    item["data"], key=f"pdf_preview_{signature}_{index}"
+                )
 
         if successful:
             st.divider()
