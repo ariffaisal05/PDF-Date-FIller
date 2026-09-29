@@ -3,12 +3,36 @@ import pymupdf
 
 CALIBRI_FONT_PATH = "calibri.ttf"
 
-
-def add_date_text(input_path, output_path, page_number, label_rects, date_parts):
-    """Write date parts immediately after their matching printed labels."""
+def add_date_text(
+    input_path,
+    output_path,
+    page_number,
+    label_rects,
+    old_value_rects,
+    date_parts,
+):
+    """Replace existing date values, then write the new values by each label."""
     with pymupdf.open(input_path) as doc:
         page = doc[page_number]
-        page.insert_font(fontname="CalibriDate", fontfile=CALIBRI_FONT_PATH)
+
+        # Redact only the detected old value glyphs; leave labels, punctuation,
+        # and surrounding text untouched.
+        for old_rect in old_value_rects:
+            redaction = pymupdf.Rect(
+                old_rect.x0 - 0.5,
+                old_rect.y0 - 0.5,
+                old_rect.x1 + 0.5,
+                old_rect.y1 + 0.5,
+            )
+            page.add_redact_annot(redaction, fill=(1, 1, 1), cross_out=False)
+
+        if old_value_rects:
+            page.apply_redactions(images=0, graphics=0)
+
+        # Redaction can rebuild the page resources, so register Calibri after
+        # applying it and before inserting the replacement text.
+        page.insert_font(fontname="CalibriDate", fontfile=str(CALIBRI_FONT_PATH))
+
         for label, value in date_parts.items():
             rect = label_rects.get(label)
             if rect is None or not value:
