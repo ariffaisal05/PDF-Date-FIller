@@ -143,6 +143,14 @@ if uploaded_files:
                     (index + 1) / len(uploaded_files),
                     text=f"Processed {index + 1} of {len(uploaded_files)} PDFs",
                 )
+        progress.empty()
+        completed_count = sum(
+            item["result"]["success"] for item in processed_files
+        )
+        st.success(
+            f"Processing complete. {completed_count} of "
+            f"{len(processed_files)} PDF(s) processed successfully."
+        )
 
         st.session_state.pdf_results = {
             "signature": signature,
