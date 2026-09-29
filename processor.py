@@ -30,9 +30,19 @@ def process_pdf(
         "November",
         "Desember"
     ]
+    indonesian_weekdays = [
+        "Senin",
+        "Selasa",
+        "Rabu",
+        "Kamis",
+        "Jumat",
+        "Sabtu",
+        "Minggu",
+    ]
 
     date_parts = {
-        "hari_ini": str(selected_date.day),
+        "hari_ini": indonesian_weekdays[selected_date.weekday()],
+        "tanggal": str(selected_date.day),
         "bulan": (
             f"{indonesian_months[selected_date.month - 1]} "
             f"{selected_date.year}"
@@ -54,7 +64,7 @@ def process_pdf(
         return {
             "success": False,
             "message": (
-                "Could not find 'Hari ini' and 'bulan' "
+                "Could not find 'Hari ini', 'tanggal', and 'bulan' "
                 "on the same line in the PDF."
             )
         }
@@ -106,7 +116,8 @@ def process_pdf(
         "page": page_number + 1,
         "detected_text": detected_text,
         "inserted_date": (
-            f"{date_parts['hari_ini']} {date_parts['bulan']}"
+            f"{date_parts['hari_ini']}, {date_parts['tanggal']} "
+            f"{date_parts['bulan']}"
         ),
         "removed_widgets": stats["widgets"],
         "removed_annotations": stats["annotations"],
