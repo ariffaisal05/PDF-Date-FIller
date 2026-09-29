@@ -31,7 +31,10 @@ def remove_widgets(doc):
 
             for widget in widgets:
 
-                if widget.field_type_string == "Signature":
+                rect = pymupdf.Rect(widget.rect)
+                has_visible_area = rect.width > 0 and rect.height > 0
+
+                if widget.field_type_string == "Signature" and has_visible_area:
 
                     # Keep the visible signature/QR artwork, but replace the
                     # clickable signature widget with a high-resolution image.
@@ -43,7 +46,7 @@ def remove_widgets(doc):
                     )
 
                     page.insert_image(
-                        widget.rect,
+                        rect,
                         stream=appearance.tobytes("png"),
                         overlay=True,
                     )
@@ -80,6 +83,24 @@ def remove_annotations(doc):
             annotations = list(annotations)
 
             for annotation in annotations:
+
+                # Some signing services store their visible signature as a
+                # Stamp annotation rather than a signature widget. Flatten
+                # its appearance before deleting the clickable annotation.
+                if annotation.type[1] == "Stamp":
+                    rect = pymupdf.Rect(annotation.rect)
+                    if rect.width > 0 and rect.height > 0:
+                        appearance = page.get_pixmap(
+                            matrix=pymupdf.Matrix(4, 4),
+                            clip=rect,
+                            annots=True,
+                            alpha=False,
+                        )
+                        page.insert_image(
+                            rect,
+                            stream=appearance.tobytes("png"),
+                            overlay=True,
+                        )
 
                 page.delete_annot(annotation)
 
