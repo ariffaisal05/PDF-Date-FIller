@@ -32,9 +32,11 @@ def process_pdf(
     ]
 
     date_parts = {
-        "tanggal": str(selected_date.day),
-        "bulan": indonesian_months[selected_date.month - 1],
-        "tahun": str(selected_date.year),
+        "hari_ini": str(selected_date.day),
+        "bulan": (
+            f"{indonesian_months[selected_date.month - 1]} "
+            f"{selected_date.year}"
+        ),
     }
 
     # ------------------------------------------------------------
@@ -52,7 +54,7 @@ def process_pdf(
         return {
             "success": False,
             "message": (
-                "Could not find 'tanggal' and 'bulan' "
+                "Could not find 'Hari ini' and 'bulan' "
                 "on the same line in the PDF."
             )
         }
@@ -103,8 +105,8 @@ def process_pdf(
         ),
         "page": page_number + 1,
         "detected_text": detected_text,
-        "inserted_date": " ".join(
-            date_parts[label] for label in label_rects
+        "inserted_date": (
+            f"{date_parts['hari_ini']} {date_parts['bulan']}"
         ),
         "removed_widgets": stats["widgets"],
         "removed_annotations": stats["annotations"],
