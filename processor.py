@@ -56,6 +56,7 @@ def process_pdf(
     (
         page_number,
         label_rects,
+        old_value_rects,
         detected_text
     ) = find_date_in_pdf(input_path)
 
@@ -98,6 +99,7 @@ def process_pdf(
             output_path,
             page_number,
             label_rects,
+            old_value_rects,
             {
                 label: date_parts[label]
                 for label in label_rects
