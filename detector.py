@@ -2,7 +2,7 @@ import re
 
 import pymupdf
 
-DATE_LABELS = {"tanggal", "bulan", "tahun"}
+SAME_LINE_TOLERANCE = 8
 
 def normalize_text(text):
     """Normalize a PDF word so punctuation and capitalization are ignored."""
@@ -10,70 +10,64 @@ def normalize_text(text):
 
 
 def find_date_in_pdf(pdf_path):
-    """Find `Hari ini` and `bulan` on the same line.
+    """Find `Hari ini`, `tanggal`, and `bulan` by visible text positions.
 
-    Returns `(page_number, label_rects, detected_text)`. The `hari_ini`
-    rectangle covers both words so the day can be inserted after the phrase.
+    PDF line metadata can split words that visually share a line, so the
+    detector compares their vertical positions instead of internal line IDs.
+    Returns `(page_number, label_rects, detected_text)`.
     """
     with pymupdf.open(pdf_path) as doc:
         for page_number, page in enumerate(doc):
             words = []
             for item in page.get_text("words"):
                 x0, y0, x1, y1, text = item[:5]
-                words.append({
-                    "text": normalize_text(text),
-                    "rect": pymupdf.Rect(x0, y0, x1, y1),
-                    "line": tuple(item[5:7]),
-                })
+                words.append((normalize_text(text), pymupdf.Rect(x0, y0, x1, y1)))
 
-            hari_ini_candidates = []
-            hari_words = [word for word in words if word["text"] == "hari"]
-            ini_words = [word for word in words if word["text"] == "ini"]
-
-            # Usually extracted as two words; also handle PDFs extracting it
-            # as a single word token.
-            for word in words:
-                if word["text"] == "hariini":
-                    hari_ini_candidates.append(word)
+            hari_words = [rect for text, rect in words if text == "hari"]
+            ini_words = [rect for text, rect in words if text == "ini"]
+            hari_ini_candidates = [
+                rect for text, rect in words if text == "hariini"
+            ]
 
             for hari in hari_words:
                 for ini in ini_words:
-                    gap = ini["rect"].x0 - hari["rect"].x1
-                    same_line = hari["line"] == ini["line"]
-                    close_words = 0 <= gap <= max(
-                        hari["rect"].height, ini["rect"].height
-                    )
+                    gap = ini.x0 - hari.x1
+                    same_line = abs(hari.y0 - ini.y0) < SAME_LINE_TOLERANCE
+                    close_words = 0 <= gap <= max(hari.height, ini.height)
                     if same_line and close_words:
-                        hari_ini_candidates.append({
-                            "text": "hariini",
-                            "rect": pymupdf.Rect(
-                                hari["rect"].x0,
-                                min(hari["rect"].y0, ini["rect"].y0),
-                                ini["rect"].x1,
-                                max(hari["rect"].y1, ini["rect"].y1),
-                            ),
-                            "line": hari["line"],
-                        })
+                        hari_ini_candidates.append(pymupdf.Rect(
+                            hari.x0,
+                            min(hari.y0, ini.y0),
+                            ini.x1,
+                            max(hari.y1, ini.y1),
+                        ))
 
-            bulan_candidates = [word for word in words if word["text"] == "bulan"]
-            pairs = [
-                (hari_ini, bulan)
+            tanggal_candidates = [rect for text, rect in words if text == "tanggal"]
+            bulan_candidates = [rect for text, rect in words if text == "bulan"]
+            triples = [
+                (hari_ini, tanggal, bulan)
                 for hari_ini in hari_ini_candidates
+                for tanggal in tanggal_candidates
                 for bulan in bulan_candidates
-                if hari_ini["line"] == bulan["line"]
-                and bulan["rect"].x0 > hari_ini["rect"].x1
+                if hari_ini.x1 < tanggal.x0 < bulan.x0
+                and tanggal.x1 < bulan.x0
+                and abs(hari_ini.y0 - tanggal.y0) < SAME_LINE_TOLERANCE
+                and abs(tanggal.y0 - bulan.y0) < SAME_LINE_TOLERANCE
             ]
-            if not pairs:
+            if not triples:
                 continue
 
-            hari_ini, bulan = min(
-                pairs,
-                key=lambda pair: pair[1]["rect"].x0 - pair[0]["rect"].x1,
+            hari_ini, tanggal, bulan = min(
+                triples,
+                key=lambda triple: (
+                    triple[1].x0 - triple[0].x1
+                    + triple[2].x0 - triple[1].x1
+                ),
             )
-            label_rects = {
-                "hari_ini": hari_ini["rect"],
-                "bulan": bulan["rect"],
-            }
-            return page_number, label_rects, "Hari ini, bulan"
+            return page_number, {
+                "hari_ini": hari_ini,
+                "tanggal": tanggal,
+                "bulan": bulan,
+            }, "Hari ini, tanggal, bulan"
 
     return None, None, None
