@@ -3,10 +3,18 @@ import re
 import pymupdf
 
 SAME_LINE_TOLERANCE = 8
+INDONESIAN_WEEKDAYS = {
+    "senin", "selasa", "rabu", "kamis", "jumat", "sabtu", "minggu"
+}
+INDONESIAN_MONTHS = {
+    "januari", "februari", "maret", "april", "mei", "juni",
+    "juli", "agustus", "september", "oktober", "november", "desember",
+}
+
 
 def normalize_text(text):
-    """Normalize a PDF word so punctuation and capitalization are ignored."""
-    return re.sub(r"[^a-z]", "", text.lower())
+    """Normalize words and numeric date values, ignoring punctuation."""
+    return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
 def find_date_in_pdf(pdf_path):
@@ -14,7 +22,7 @@ def find_date_in_pdf(pdf_path):
 
     PDF line metadata can split words that visually share a line, so the
     detector compares their vertical positions instead of internal line IDs.
-    Returns `(page_number, label_rects, detected_text)`.
+    Returns `(page_number, label_rects, old_value_rects, detected_text)`.
     """
     with pymupdf.open(pdf_path) as doc:
         for page_number, page in enumerate(doc):
@@ -64,10 +72,82 @@ def find_date_in_pdf(pdf_path):
                     + triple[2].x0 - triple[1].x1
                 ),
             )
+
+            old_value_rects = []
+
+            def right_of(anchor, stop=None):
+                return sorted(
+                    (
+                        (text, rect)
+                        for text, rect in words
+                        if rect.x0 >= anchor.x1
+                        and abs(rect.y0 - anchor.y0) < SAME_LINE_TOLERANCE
+                        and (stop is None or rect.x1 < stop.x0)
+                    ),
+                    key=lambda item: item[1].x0,
+                )
+
+            # Remove a previously inserted weekday (current format) or a
+            # numeric day left by an earlier version from after "Hari ini".
+            for text, rect in right_of(hari_ini, tanggal):
+                is_numeric_day = text.isdigit() and 1 <= int(text) <= 31
+                if text in INDONESIAN_WEEKDAYS or is_numeric_day:
+                    old_value_rects.append(rect)
+
+            # Remove the previous day value after "tanggal".
+            for text, rect in right_of(tanggal, bulan):
+                if text.isdigit() and 1 <= int(text) <= 31:
+                    old_value_rects.append(rect)
+
+            # Remove an existing Indonesian month and adjacent year after
+            # "bulan", including dates inserted by this processor earlier.
+            month_area = right_of(bulan)
+            month_tokens = [
+                (text, rect)
+                for text, rect in month_area
+                if text in INDONESIAN_MONTHS
+            ]
+            if month_tokens:
+                # Prior runs can leave multiple values overlapped. Remove all
+                # recognized month/year tokens before the next comma on this
+                # line, where the following sentence begins.
+                commas = [
+                    rect for text, rect in month_area
+                    if not text and rect.x0 > month_tokens[0][1].x1
+                ]
+                stop_x = min((rect.x0 for rect in commas), default=None)
+                for text, rect in month_area:
+                    in_date_area = stop_x is None or rect.x0 < stop_x
+                    if in_date_area and (
+                        text in INDONESIAN_MONTHS
+                        or re.fullmatch(r"(?:19|20)\d{2}", text)
+                    ):
+                        old_value_rects.append(rect)
+
+            # Older revisions wrote the year after a printed "tahun" label.
+            year_labels = [rect for text, rect in words if text == "tahun"]
+            for year_label in year_labels:
+                years = [
+                    (text, rect)
+                    for text, rect in right_of(year_label)
+                    if re.fullmatch(r"(?:19|20)\d{2}", text)
+                ]
+                old_value_rects.extend(rect for _, rect in years)
+
+            # A year after `bulan` and after a printed `tahun` label can be
+            # discovered by both cleanup rules; only redact it once.
+            unique_old_value_rects = []
+            seen_rects = set()
+            for rect in old_value_rects:
+                key = tuple(round(value, 2) for value in rect)
+                if key not in seen_rects:
+                    seen_rects.add(key)
+                    unique_old_value_rects.append(rect)
+
             return page_number, {
                 "hari_ini": hari_ini,
                 "tanggal": tanggal,
                 "bulan": bulan,
-            }, "Hari ini, tanggal, bulan"
+            }, unique_old_value_rects, "Hari ini, tanggal, bulan"
 
-    return None, None, None
+    return None, None, None, None
