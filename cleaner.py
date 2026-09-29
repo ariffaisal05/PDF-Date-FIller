@@ -5,7 +5,11 @@ from pypdf import PdfReader, PdfWriter
 
 def remove_widgets(doc):
     """
-    Remove PDF form widgets.
+    Remove PDF form widgets while preserving signature appearances.
+
+    Signature widget appearances are flattened into the page first so that
+    signatures and QR codes remain visible but are no longer interactive.
+    Other widgets are removed as before.
 
     Removes:
         - Text fields
@@ -26,6 +30,23 @@ def remove_widgets(doc):
             widgets = list(widgets)
 
             for widget in widgets:
+
+                if widget.field_type_string == "Signature":
+
+                    # Keep the visible signature/QR artwork, but replace the
+                    # clickable signature widget with a high-resolution image.
+                    appearance = page.get_pixmap(
+                        matrix=pymupdf.Matrix(4, 4),
+                        clip=widget.rect,
+                        annots=True,
+                        alpha=False,
+                    )
+
+                    page.insert_image(
+                        widget.rect,
+                        stream=appearance.tobytes("png"),
+                        overlay=True,
+                    )
 
                 page.delete_widget(widget)
 
