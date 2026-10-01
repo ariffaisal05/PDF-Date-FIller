@@ -14,10 +14,6 @@ from processor import process_pdf
 st.set_page_config(page_title="PDF Date Filler", page_icon="📄", layout="centered")
 st.title("📄 PDF Date Filler")
 st.write(
-    "Upload PDFs, choose a date, and the system will fill the detected date "
-    "labels and remove interactive PDF content. Review each result before downloading."
-)
-st.write(
     "Unggah berkas PDF, pilih tanggal, dan sistem akan mengisi label tanggal yang terdeteksi serta menghapus konten PDF interaktif. " 
     "Periksa setiap hasil sebelum mengunduhnya."
 )
