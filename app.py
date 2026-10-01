@@ -17,6 +17,10 @@ st.write(
     "Upload PDFs, choose a date, and the system will fill the detected date "
     "labels and remove interactive PDF content. Review each result before downloading."
 )
+st.write(
+    "Unggah berkas PDF, pilih tanggal, dan sistem akan mengisi label tanggal yang terdeteksi serta menghapus konten PDF interaktif. " 
+    "Periksa setiap hasil sebelum mengunduhnya."
+)
 
 uploaded_files = st.file_uploader(
     "Upload PDF files", type=["pdf"], accept_multiple_files=True
