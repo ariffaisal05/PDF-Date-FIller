@@ -2,6 +2,7 @@ import re
 
 import pymupdf
 
+
 SAME_LINE_TOLERANCE = 8
 INDONESIAN_WEEKDAYS = {
     "senin", "selasa", "rabu", "kamis", "jumat", "sabtu", "minggu"
@@ -9,6 +10,13 @@ INDONESIAN_WEEKDAYS = {
 INDONESIAN_MONTHS = {
     "januari", "februari", "maret", "april", "mei", "juni",
     "juli", "agustus", "september", "oktober", "november", "desember",
+}
+ENGLISH_WEEKDAYS = {
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
+}
+ENGLISH_MONTHS = {
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
 }
 
 
@@ -18,11 +26,12 @@ def normalize_text(text):
 
 
 def find_date_in_pdf(pdf_path):
-    """Find `Hari ini`, `tanggal`, and `bulan` by visible text positions.
+    """Find Indonesian date markers or the English `Today` marker.
 
     PDF line metadata can split words that visually share a line, so the
-    detector compares their vertical positions instead of internal line IDs.
-    Returns `(page_number, label_rects, old_value_rects, detected_text)`.
+    Indonesian detector compares vertical positions instead of internal line
+    IDs. English dates are anchored immediately after `Today`. Returns
+    `(page_number, label_rects, old_value_rects, detected_text)`.
     """
     with pymupdf.open(pdf_path) as doc:
         for page_number, page in enumerate(doc):
@@ -63,6 +72,44 @@ def find_date_in_pdf(pdf_path):
                 and abs(tanggal.y0 - bulan.y0) < SAME_LINE_TOLERANCE
             ]
             if not triples:
+                # English forms place the complete date after the marker
+                # "today,". Detect and clear any existing date tokens there.
+                today_candidates = [
+                    rect for text, rect in words if text == "today"
+                ]
+                for today in today_candidates:
+                    following = sorted(
+                        (
+                            (text, rect)
+                            for text, rect in words
+                            if rect.x0 >= today.x1
+                            and abs(rect.y0 - today.y0) < SAME_LINE_TOLERANCE
+                        ),
+                        key=lambda item: item[1].x0,
+                    )
+                    old_value_rects = []
+                    date_started = False
+                    for text, rect in following:
+                        is_day = text.isdigit() and 1 <= int(text) <= 31
+                        is_year = bool(re.fullmatch(r"(?:19|20)\d{2}", text))
+                        if (
+                            text in ENGLISH_WEEKDAYS
+                            or text in ENGLISH_MONTHS
+                            or is_day
+                            or is_year
+                        ):
+                            old_value_rects.append(rect)
+                            date_started = True
+                        elif not text:
+                            # Standalone punctuation may separate date parts.
+                            continue
+                        elif date_started:
+                            break
+                        else:
+                            break
+
+                    return page_number, {"today": today}, old_value_rects, "Today"
+
                 continue
 
             hari_ini, tanggal, bulan = min(
