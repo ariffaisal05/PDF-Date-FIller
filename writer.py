@@ -60,8 +60,14 @@ def add_date_text(
             # only OCR insertions to the detected printed label height; keep
             # the established 11 pt size for selectable-text PDFs.
             font_size = max(11, rect.height * 0.8) if ocr_used else 11
+            if ocr_used:
+                x_position = rect.x1 + max(6, rect.height * 0.3)
+                y_position = rect.y1 - rect.height * 0.42
+            else:
+                x_position = rect.x1 + 3
+                y_position = rect.y1 - rect.height * 0.233
             page.insert_text(
-                (rect.x1 + 3, rect.y1 - rect.height * 0.233),
+                (x_position, y_position),
                 str(value),
                 fontsize=font_size,
                 fontname="CalibriDate",
