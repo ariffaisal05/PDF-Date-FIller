@@ -84,18 +84,24 @@ def remove_annotations(doc):
 
             for annotation in annotations:
 
-                # Some signing services store their visible signature as a
-                # Stamp annotation rather than a signature widget. Flatten
-                # its appearance before deleting the clickable annotation.
-                if annotation.type[1] == "Stamp":
+                # Signatures may be stored as Stamp or Ink annotations.
+                # Flatten their own visible appearance before deleting the
+                # clickable annotation, preserving transparency for Ink.
+                if annotation.type[1] in {"Stamp", "Ink"}:
                     rect = pymupdf.Rect(annotation.rect)
                     if rect.width > 0 and rect.height > 0:
-                        appearance = page.get_pixmap(
-                            matrix=pymupdf.Matrix(4, 4),
-                            clip=rect,
-                            annots=True,
-                            alpha=False,
-                        )
+                        if annotation.type[1] == "Ink":
+                            appearance = annotation.get_pixmap(
+                                matrix=pymupdf.Matrix(4, 4),
+                                alpha=True,
+                            )
+                        else:
+                            appearance = page.get_pixmap(
+                                matrix=pymupdf.Matrix(4, 4),
+                                clip=rect,
+                                annots=True,
+                                alpha=False,
+                            )
                         page.insert_image(
                             rect,
                             stream=appearance.tobytes("png"),
