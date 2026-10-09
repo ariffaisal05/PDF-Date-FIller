@@ -1,6 +1,8 @@
 import os
 import tempfile
 
+import pymupdf
+
 from detector import find_date_in_pdf
 from cleaner import clean_pdf
 from writer import add_date_text
@@ -46,6 +48,11 @@ def process_pdf(
         old_value_rects,
         detected_text
     ) = find_date_in_pdf(input_path)
+
+    scanned_page = False
+    if page_number is not None:
+        with pymupdf.open(input_path) as source_doc:
+            scanned_page = not bool(source_doc[page_number].get_text().strip())
 
     if page_number is None:
 
@@ -117,7 +124,8 @@ def process_pdf(
             {
                 label: date_parts[label]
                 for label in label_rects
-            }
+            },
+            scanned_page=scanned_page,
         )
 
     # ------------------------------------------------------------
@@ -127,7 +135,8 @@ def process_pdf(
     return {
         "success": True,
         "message": (
-            "PDF processed successfully."
+            "PDF processed successfully (OCR used for scanned page)."
+            if scanned_page else "PDF processed successfully."
         ),
         "page": page_number + 1,
         "detected_text": detected_text,

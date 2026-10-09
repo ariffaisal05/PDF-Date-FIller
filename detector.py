@@ -25,6 +25,17 @@ def normalize_text(text):
     return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
+def _extract_words(page, use_ocr=False):
+    """Read page words, falling back to English+Indonesian OCR for scans."""
+    words = page.get_text("words")
+    if not words and use_ocr:
+        textpage = page.get_textpage_ocr(
+            language="eng+ind", dpi=300, full=True
+        )
+        words = page.get_text("words", textpage=textpage)
+    return words
+
+
 def find_date_in_pdf(pdf_path):
     """Find Indonesian date markers or the English `Today` marker.
 
@@ -36,7 +47,7 @@ def find_date_in_pdf(pdf_path):
     with pymupdf.open(pdf_path) as doc:
         for page_number, page in enumerate(doc):
             words = []
-            for item in page.get_text("words"):
+            for item in _extract_words(page, use_ocr=True):
                 x0, y0, x1, y1, text = item[:5]
                 words.append((normalize_text(text), pymupdf.Rect(x0, y0, x1, y1)))
 

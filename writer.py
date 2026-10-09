@@ -10,6 +10,7 @@ def add_date_text(
     label_rects,
     old_value_rects,
     date_parts,
+    scanned_page=False,
 ):
     """Replace existing date values, then write the new values by each label."""
     with pymupdf.open(input_path) as doc:
@@ -17,17 +18,32 @@ def add_date_text(
 
         # Redact only the detected old value glyphs; leave labels, punctuation,
         # and surrounding text untouched.
-        for old_rect in old_value_rects:
-            redaction = pymupdf.Rect(
-                old_rect.x0 - 0.5,
-                old_rect.y0 - 0.5,
-                old_rect.x1 + 0.5,
-                old_rect.y1 + 0.5,
-            )
-            page.add_redact_annot(redaction, fill=(1, 1, 1), cross_out=False)
-
         if old_value_rects:
-            page.apply_redactions(images=0, graphics=0)
+            if scanned_page:
+                # OCR words live in the page image, so text redaction alone
+                # cannot erase them. Paint over just the detected date glyphs.
+                for old_rect in old_value_rects:
+                    cover = pymupdf.Rect(
+                        old_rect.x0 - 1,
+                        old_rect.y0 - 1,
+                        old_rect.x1 + 1,
+                        old_rect.y1 + 1,
+                    ) & page.rect
+                    page.draw_rect(
+                        cover, color=None, fill=(1, 1, 1), overlay=True
+                    )
+            else:
+                for old_rect in old_value_rects:
+                    redaction = pymupdf.Rect(
+                        old_rect.x0 - 0.5,
+                        old_rect.y0 - 0.5,
+                        old_rect.x1 + 0.5,
+                        old_rect.y1 + 0.5,
+                    )
+                    page.add_redact_annot(
+                        redaction, fill=(1, 1, 1), cross_out=False
+                    )
+                page.apply_redactions(images=0, graphics=0)
 
         # Redaction can rebuild the page resources, so register Calibri after
         # applying it and before inserting the replacement text.
