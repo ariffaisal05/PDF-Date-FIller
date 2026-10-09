@@ -46,13 +46,9 @@ def process_pdf(
         page_number,
         label_rects,
         old_value_rects,
-        detected_text
+        detected_text,
+        ocr_used,
     ) = find_date_in_pdf(input_path)
-
-    scanned_page = False
-    if page_number is not None:
-        with pymupdf.open(input_path) as source_doc:
-            scanned_page = not bool(source_doc[page_number].get_text().strip())
 
     if page_number is None:
 
@@ -125,7 +121,7 @@ def process_pdf(
                 label: date_parts[label]
                 for label in label_rects
             },
-            scanned_page=scanned_page,
+            ocr_used=ocr_used,
         )
 
     # ------------------------------------------------------------
@@ -136,7 +132,7 @@ def process_pdf(
         "success": True,
         "message": (
             "PDF processed successfully (OCR used for scanned page)."
-            if scanned_page else "PDF processed successfully."
+            if ocr_used else "PDF processed successfully."
         ),
         "page": page_number + 1,
         "detected_text": detected_text,

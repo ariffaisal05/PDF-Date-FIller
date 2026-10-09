@@ -25,15 +25,26 @@ def normalize_text(text):
     return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
-def _extract_words(page, use_ocr=False):
-    """Read page words, falling back to English+Indonesian OCR for scans."""
+def _has_date_markers(words):
+    tokens = {normalize_text(item[4]) for item in words}
+    has_hari_ini = "hariini" in tokens or {"hari", "ini"}.issubset(tokens)
+    has_indonesian_labels = (
+        has_hari_ini and {"tanggal", "bulan"}.issubset(tokens)
+    )
+    return has_indonesian_labels or "today" in tokens
+
+
+def _extract_words(page):
+    """Read selectable text, using OCR if the date labels are not present."""
     words = page.get_text("words")
-    if not words and use_ocr:
+    if not _has_date_markers(words):
         textpage = page.get_textpage_ocr(
             language="eng+ind", dpi=300, full=True
         )
-        words = page.get_text("words", textpage=textpage)
-    return words
+        ocr_words = page.get_text("words", textpage=textpage)
+        if _has_date_markers(ocr_words):
+            return ocr_words, True
+    return words, False
 
 
 def find_date_in_pdf(pdf_path):
@@ -42,12 +53,13 @@ def find_date_in_pdf(pdf_path):
     PDF line metadata can split words that visually share a line, so the
     Indonesian detector compares vertical positions instead of internal line
     IDs. English dates are anchored immediately after `Today`. Returns
-    `(page_number, label_rects, old_value_rects, detected_text)`.
+    `(page_number, label_rects, old_value_rects, detected_text, ocr_used)`.
     """
     with pymupdf.open(pdf_path) as doc:
         for page_number, page in enumerate(doc):
             words = []
-            for item in _extract_words(page, use_ocr=True):
+            page_words, ocr_used = _extract_words(page)
+            for item in page_words:
                 x0, y0, x1, y1, text = item[:5]
                 words.append((normalize_text(text), pymupdf.Rect(x0, y0, x1, y1)))
 
@@ -119,7 +131,13 @@ def find_date_in_pdf(pdf_path):
                         else:
                             break
 
-                    return page_number, {"today": today}, old_value_rects, "Today"
+                    return (
+                        page_number,
+                        {"today": today},
+                        old_value_rects,
+                        "Today",
+                        ocr_used,
+                    )
 
                 continue
 
@@ -206,6 +224,6 @@ def find_date_in_pdf(pdf_path):
                 "hari_ini": hari_ini,
                 "tanggal": tanggal,
                 "bulan": bulan,
-            }, unique_old_value_rects, "Hari ini, tanggal, bulan"
+            }, unique_old_value_rects, "Hari ini, tanggal, bulan", ocr_used
 
-    return None, None, None, None
+    return None, None, None, None, False

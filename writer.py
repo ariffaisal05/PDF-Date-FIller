@@ -10,7 +10,7 @@ def add_date_text(
     label_rects,
     old_value_rects,
     date_parts,
-    scanned_page=False,
+    ocr_used=False,
 ):
     """Replace existing date values, then write the new values by each label."""
     with pymupdf.open(input_path) as doc:
@@ -19,7 +19,7 @@ def add_date_text(
         # Redact only the detected old value glyphs; leave labels, punctuation,
         # and surrounding text untouched.
         if old_value_rects:
-            if scanned_page:
+            if ocr_used:
                 # OCR words live in the page image, so text redaction alone
                 # cannot erase them. Paint over just the detected date glyphs.
                 for old_rect in old_value_rects:
@@ -56,10 +56,14 @@ def add_date_text(
 
             # The supplied form uses Calibri 11.05 pt. Its text baseline is
             # about 23.3% of the word-box height above the lower edge.
+            # OCR page coordinates follow the scan's pixel-sized page. Scale
+            # only OCR insertions to the detected printed label height; keep
+            # the established 11 pt size for selectable-text PDFs.
+            font_size = max(11, rect.height * 0.8) if ocr_used else 11
             page.insert_text(
                 (rect.x1 + 3, rect.y1 - rect.height * 0.233),
                 str(value),
-                fontsize=11,
+                fontsize=font_size,
                 fontname="CalibriDate",
                 color=(0, 0, 0),
                 overlay=True,
