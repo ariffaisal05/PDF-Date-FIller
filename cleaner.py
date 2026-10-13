@@ -116,6 +116,39 @@ def remove_annotations(doc):
     return removed
 
 
+def remove_sign_prompts(doc):
+    """Remove red SIGN arrows while leaving signature strokes underneath."""
+    for page in doc:
+        drawings = page.get_drawings()
+        redactions_added = False
+        for word in page.get_text("words"):
+            if word[4].strip().casefold() != "sign":
+                continue
+            word_rect = pymupdf.Rect(word[:4])
+            for drawing in drawings:
+                fill = drawing.get("fill")
+                if (
+                    not fill
+                    or fill[0] < 0.75
+                    or fill[1] > 0.6
+                    or fill[2] > 0.5
+                    or not drawing["rect"].intersects(word_rect)
+                ):
+                    continue
+                # Redact the arrow and label without painting over the ink
+                # signature beneath it. Only fully covered vector paths go.
+                rect = pymupdf.Rect(drawing["rect"])
+                rect.x0 -= 1
+                rect.y0 -= 1
+                rect.x1 += 1
+                rect.y1 += 1
+                page.add_redact_annot(rect, fill=False, cross_out=False)
+                redactions_added = True
+                break
+        if redactions_added:
+            page.apply_redactions(images=0, graphics=1, text=0)
+
+
 def remove_links(doc):
     """
     Remove PDF links.
@@ -160,6 +193,7 @@ def clean_with_pymupdf(
 
     widget_count = remove_widgets(doc)
 
+    remove_sign_prompts(doc)
     annotation_count = remove_annotations(doc)
 
     link_count = remove_links(doc)
