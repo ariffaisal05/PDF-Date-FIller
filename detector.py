@@ -28,9 +28,9 @@ def normalize_text(text):
 def _has_date_markers(words):
     tokens = {normalize_text(item[4]) for item in words}
     has_hari_ini = "hariini" in tokens or {"hari", "ini"}.issubset(tokens)
-    has_indonesian_labels = (
-        has_hari_ini and {"tanggal", "bulan"}.issubset(tokens)
-    )
+    # Some Indonesian forms have only "Hari ini" and "tanggal"; the
+    # month label is optional on those layouts.
+    has_indonesian_labels = has_hari_ini and "tanggal" in tokens
     return has_indonesian_labels or "today" in tokens
 
 
@@ -95,6 +95,62 @@ def find_date_in_pdf(pdf_path):
                 and abs(tanggal.y0 - bulan.y0) < SAME_LINE_TOLERANCE
             ]
             if not triples:
+                # Some Indonesian forms have no "bulan" label. Fill the
+                # weekday and day beside the two labels that are present.
+                pairs = [
+                    (hari_ini, tanggal)
+                    for hari_ini in hari_ini_candidates
+                    for tanggal in tanggal_candidates
+                    if hari_ini.x1 < tanggal.x0
+                    and abs(hari_ini.y0 - tanggal.y0) < SAME_LINE_TOLERANCE
+                ]
+                if pairs:
+                    hari_ini, tanggal = min(
+                        pairs, key=lambda pair: pair[1].x0 - pair[0].x1
+                    )
+                    old_value_rects = []
+                    for text, rect in words:
+                        same_line_hari = (
+                            abs(rect.y0 - hari_ini.y0) < SAME_LINE_TOLERANCE
+                        )
+                        if (
+                            rect.x0 >= hari_ini.x1
+                            and rect.x1 < tanggal.x0
+                            and same_line_hari
+                            and text in INDONESIAN_WEEKDAYS
+                        ):
+                            old_value_rects.append(rect)
+
+                    following = sorted(
+                        (
+                            (text, rect)
+                            for text, rect in words
+                            if rect.x0 >= tanggal.x1
+                            and abs(rect.y0 - tanggal.y0)
+                            < SAME_LINE_TOLERANCE
+                        ),
+                        key=lambda item: item[1].x0,
+                    )
+                    date_started = False
+                    for text, rect in following:
+                        is_day = text.isdigit() and 1 <= int(text) <= 31
+                        is_month = text in INDONESIAN_MONTHS
+                        is_year = bool(re.fullmatch(r"(?:19|20)\d{2}", text))
+                        if is_day or is_month or is_year:
+                            old_value_rects.append(rect)
+                            date_started = True
+                        elif not text and not date_started:
+                            continue
+                        else:
+                            break
+                    return (
+                        page_number,
+                        {"hari_ini": hari_ini, "tanggal": tanggal},
+                        old_value_rects,
+                        "Hari ini, tanggal",
+                        ocr_used,
+                    )
+
                 # English forms place the complete date after the marker
                 # "today,". Detect and clear any existing date tokens there.
                 today_candidates = [

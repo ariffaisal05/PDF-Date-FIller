@@ -55,8 +55,8 @@ def process_pdf(
         return {
             "success": False,
             "message": (
-                "Could not find either the Indonesian date labels "
-                "('Hari ini', 'tanggal', 'bulan') or the English label 'Today'."
+                "Could not find Indonesian date labels ('Hari ini' and "
+                "'tanggal', with optional 'bulan') or the English label 'Today'."
             )
         }
 
@@ -74,18 +74,22 @@ def process_pdf(
         }
         inserted_date = date_parts["today"]
     else:
+        month_year = (
+            f"{indonesian_months[selected_date.month - 1]} "
+            f"{selected_date.year}"
+        )
+        day_and_month = str(selected_date.day)
+        if "bulan" not in label_rects:
+            day_and_month = f"{day_and_month} {month_year}"
+
         date_parts = {
             "hari_ini": indonesian_weekdays[selected_date.weekday()],
-            "tanggal": str(selected_date.day),
-            "bulan": (
-                f"{indonesian_months[selected_date.month - 1]} "
-                f"{selected_date.year}"
-            ),
+            "tanggal": day_and_month,
+            "bulan": month_year,
         }
-        inserted_date = (
-            f"{date_parts['hari_ini']}, {date_parts['tanggal']} "
-            f"{date_parts['bulan']}"
-        )
+        inserted_date = f"{date_parts['hari_ini']}, {date_parts['tanggal']}"
+        if "bulan" in label_rects:
+            inserted_date += f" {date_parts['bulan']}"
 
     # ------------------------------------------------------------
     # Create temporary directory
