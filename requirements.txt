@@ -1,5 +1,3 @@
 streamlit
 pymupdf
 pypdf
-pandas
-openpyxl

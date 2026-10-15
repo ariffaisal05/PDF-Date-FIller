@@ -1,8 +1,6 @@
 import os
 import tempfile
 
-import pymupdf
-
 from detector import find_date_in_pdf
 from cleaner import clean_pdf
 from writer import add_date_text
