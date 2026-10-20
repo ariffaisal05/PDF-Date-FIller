@@ -26,8 +26,23 @@ if "analytics_session_id" not in st.session_state:
     if analytics.ready():
         analytics.log_session(st.session_state.analytics_session_id)
 
-page = st.sidebar.radio("Page", ["PDF Date Filler", "Analytics"])
-if page == "Analytics":
+if "user_mode" not in st.session_state:
+    st.title("Welcome")
+    st.write("Choose how you want to continue.")
+    guest_column, admin_column = st.columns(2)
+    if guest_column.button("Continue as Guest", use_container_width=True):
+        st.session_state.user_mode = "guest"
+        st.rerun()
+    if admin_column.button("Admin", use_container_width=True):
+        st.session_state.user_mode = "admin"
+        st.rerun()
+    st.stop()
+
+if st.session_state.user_mode == "admin":
+    if st.button("Back to role selection"):
+        st.session_state.pop("user_mode", None)
+        st.session_state.pop("analytics_authenticated", None)
+        st.rerun()
     st.title("Usage analytics")
     analytics.show_dashboard()
     st.stop()
