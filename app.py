@@ -3,6 +3,8 @@ import hashlib
 import json
 import os
 import tempfile
+import time
+import uuid
 from datetime import date
 
 import pymupdf
@@ -10,6 +12,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from processor import process_pdf
+import analytics
 
 st.set_page_config(page_title="PDF Date Filler", page_icon="📄", layout="centered")
 st.title("📄 PDF Date Filler")
@@ -17,6 +20,17 @@ st.write(
     "Unggah berkas PDF, pilih tanggal, dan sistem akan mengisi label tanggal yang terdeteksi serta menghapus konten PDF interaktif. " 
     "Periksa setiap hasil sebelum mengunduhnya."
 )
+
+if "analytics_session_id" not in st.session_state:
+    st.session_state.analytics_session_id = str(uuid.uuid4())
+    if analytics.ready():
+        analytics.log_session(st.session_state.analytics_session_id)
+
+page = st.sidebar.radio("Page", ["PDF Date Filler", "Analytics"])
+if page == "Analytics":
+    st.title("Usage analytics")
+    analytics.show_dashboard()
+    st.stop()
 
 uploaded_files = st.file_uploader(
     "Upload PDF files", type=["pdf"], accept_multiple_files=True
@@ -105,6 +119,7 @@ if uploaded_files:
     st.caption(f"{len(uploaded_files)} PDF file(s) ready.")
 
     if st.button("Process PDFs", type="primary"):
+        started_at = time.perf_counter()
         processed_files = []
         progress = st.progress(0, text="Starting PDF processing…")
 
@@ -135,7 +150,11 @@ if uploaded_files:
                     processed_files.append({
                         "source": uploaded_file.name,
                         "filename": output_filename,
-                        "result": {"success": False, "message": str(error)},
+                        "result": {
+                            "success": False,
+                            "message": str(error),
+                            "detection_method": "unknown",
+                        },
                         "data": None,
                     })
 
@@ -144,6 +163,12 @@ if uploaded_files:
                     text=f"Processed {index + 1} of {len(uploaded_files)} PDFs",
                 )
         progress.empty()
+        if analytics.ready():
+            analytics.log_job(
+                st.session_state.analytics_session_id,
+                processed_files,
+                time.perf_counter() - started_at,
+            )
         completed_count = sum(
             item["result"]["success"] for item in processed_files
         )

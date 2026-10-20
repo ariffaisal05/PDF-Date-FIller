@@ -52,6 +52,8 @@ def process_pdf(
 
         return {
             "success": False,
+            "ocr_used": ocr_used,
+            "detection_method": "OCR" if ocr_used else "Text",
             "message": (
                 "Could not find Indonesian date labels ('Hari ini' and "
                 "'tanggal', with optional 'bulan') or the English label 'Today'."
@@ -138,6 +140,8 @@ def process_pdf(
         ),
         "page": page_number + 1,
         "detected_text": detected_text,
+        "ocr_used": ocr_used,
+        "detection_method": "OCR" if ocr_used else "Text",
         "inserted_date": inserted_date,
         "removed_widgets": stats["widgets"],
         "removed_annotations": stats["annotations"],
