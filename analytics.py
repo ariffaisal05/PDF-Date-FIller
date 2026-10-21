@@ -224,7 +224,7 @@ def show_dashboard():
                     ),
                 ),
                 tooltip=[
-                    alt.Tooltip("Date:T", title="Date"),
+                    alt.Tooltip("Date:O", title="Date"),
                     alt.Tooltip("Metric:N", title="Series"),
                     alt.Tooltip("Count:Q", title="Count"),
                 ],
