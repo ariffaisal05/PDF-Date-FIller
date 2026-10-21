@@ -202,7 +202,7 @@ def show_dashboard():
             alt.Chart(chart_data)
             .transform_fold(["Sessions", "Jobs"], as_=["Metric", "Count"])
             .encode(
-                x=alt.X("Date:T", title="Date"),
+                x=alt.X("Date:O", title="Date"),
                 y=alt.Y("Count:Q", title="Count", scale=alt.Scale(zero=True)),
                 color=alt.Color(
                     "Metric:N",
