@@ -8,6 +8,7 @@ import urllib.request
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
+import altair as alt
 import streamlit as st
 
 
@@ -196,7 +197,33 @@ def show_dashboard():
     st.subheader("Sessions and jobs over time")
     timeline = [daily[day] for day in sorted(daily)]
     if timeline:
-        st.bar_chart(timeline, x="Date", y=["Sessions", "Jobs"])
+        chart_data = alt.Data(values=timeline)
+        chart = (
+            alt.Chart(chart_data)
+            .transform_fold(["Sessions", "Jobs"], as_=["Metric", "Count"])
+            .encode(
+                x=alt.X("Date:T", title="Date"),
+                y=alt.Y("Count:Q", title="Count", scale=alt.Scale(zero=True)),
+                color=alt.Color(
+                    "Metric:N",
+                    title=None,
+                    scale=alt.Scale(
+                        domain=["Sessions", "Jobs"],
+                        range=["#60A5FA", "#F97316"],
+                    ),
+                ),
+                tooltip=[
+                    alt.Tooltip("Date:T", title="Date"),
+                    alt.Tooltip("Metric:N", title="Series"),
+                    alt.Tooltip("Count:Q", title="Count"),
+                ],
+            )
+            .properties(height=320)
+        )
+        st.altair_chart(
+            chart.mark_line(strokeWidth=3) + chart.mark_circle(size=140),
+            use_container_width=True,
+        )
         st.dataframe(timeline, hide_index=True, use_container_width=True)
     else:
         st.caption("No activity recorded in this time range yet.")

@@ -32,7 +32,7 @@ with login:
             st.session_state.analytics_view = False
             st.session_state.pop("analytics_authenticated", None)
             st.rerun()
-    elif st.button("Admin login"):
+    elif st.button("Admin"):
         st.session_state.analytics_view = True
         st.session_state.pop("analytics_authenticated", None)
         st.rerun()
