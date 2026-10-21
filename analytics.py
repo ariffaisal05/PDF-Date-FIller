@@ -195,14 +195,25 @@ def show_dashboard():
             errors.update(properties.get("error_counts", {}))
 
     st.subheader("Sessions and jobs over time")
-    timeline = [daily[day] for day in sorted(daily)]
+    timeline = [
+        {
+            **daily[day],
+            "Date": f"{day[:7]}-{int(day[8:])}",
+            "SortDate": day,
+        }
+        for day in sorted(daily)
+    ]
     if timeline:
         chart_data = alt.Data(values=timeline)
         chart = (
             alt.Chart(chart_data)
             .transform_fold(["Sessions", "Jobs"], as_=["Metric", "Count"])
             .encode(
-                x=alt.X("Date:O", title="Date"),
+                x=alt.X(
+                    "Date:O",
+                    title="Date",
+                    sort=alt.SortField(field="SortDate", order="ascending"),
+                ),
                 y=alt.Y("Count:Q", title="Count", scale=alt.Scale(zero=True)),
                 color=alt.Color(
                     "Metric:N",
@@ -224,7 +235,11 @@ def show_dashboard():
             chart.mark_line(strokeWidth=3) + chart.mark_circle(size=140),
             use_container_width=True,
         )
-        st.dataframe(timeline, hide_index=True, use_container_width=True)
+        st.dataframe(
+            [{key: row[key] for key in ("Date", "Sessions", "Jobs")} for row in timeline],
+            hide_index=True,
+            use_container_width=True,
+        )
     else:
         st.caption("No activity recorded in this time range yet.")
 
