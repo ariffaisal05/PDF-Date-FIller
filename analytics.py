@@ -196,7 +196,7 @@ def show_dashboard():
     st.subheader("Sessions and jobs over time")
     timeline = [daily[day] for day in sorted(daily)]
     if timeline:
-        st.line_chart(timeline, x="Date", y=["Sessions", "Jobs"])
+        st.bar_chart(timeline, x="Date", y=["Sessions", "Jobs"])
         st.dataframe(timeline, hide_index=True, use_container_width=True)
     else:
         st.caption("No activity recorded in this time range yet.")

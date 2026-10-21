@@ -15,37 +15,36 @@ from processor import process_pdf
 import analytics
 
 st.set_page_config(page_title="PDF Date Filler", page_icon="📄", layout="centered")
-st.title("📄 PDF Date Filler")
-st.write(
-    "Unggah berkas PDF, pilih tanggal, dan sistem akan mengisi label tanggal yang terdeteksi serta menghapus konten PDF interaktif. " 
-    "Periksa setiap hasil sebelum mengunduhnya."
-)
-
 if "analytics_session_id" not in st.session_state:
     st.session_state.analytics_session_id = str(uuid.uuid4())
     if analytics.ready():
         analytics.log_session(st.session_state.analytics_session_id)
 
-if "user_mode" not in st.session_state:
-    st.title("Welcome")
-    st.write("Choose how you want to continue.")
-    guest_column, admin_column = st.columns(2)
-    if guest_column.button("Continue as Guest", use_container_width=True):
-        st.session_state.user_mode = "guest"
-        st.rerun()
-    if admin_column.button("Admin", use_container_width=True):
-        st.session_state.user_mode = "admin"
-        st.rerun()
-    st.stop()
+if "analytics_view" not in st.session_state:
+    st.session_state.analytics_view = False
 
-if st.session_state.user_mode == "admin":
-    if st.button("Back to role selection"):
-        st.session_state.pop("user_mode", None)
+header, login = st.columns([5, 1])
+with header:
+    st.title("Usage analytics" if st.session_state.analytics_view else "📄 PDF Date Filler")
+with login:
+    if st.session_state.analytics_view:
+        if st.button("PDF filler"):
+            st.session_state.analytics_view = False
+            st.session_state.pop("analytics_authenticated", None)
+            st.rerun()
+    elif st.button("Admin login"):
+        st.session_state.analytics_view = True
         st.session_state.pop("analytics_authenticated", None)
         st.rerun()
-    st.title("Usage analytics")
+
+if st.session_state.analytics_view:
     analytics.show_dashboard()
     st.stop()
+
+st.write(
+    "Unggah berkas PDF, pilih tanggal, dan sistem akan mengisi label tanggal yang terdeteksi serta menghapus konten PDF interaktif. "
+    "Periksa setiap hasil sebelum mengunduhnya."
+)
 
 uploaded_files = st.file_uploader(
     "Upload PDF files", type=["pdf"], accept_multiple_files=True
