@@ -12,6 +12,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from processor import process_pdf
+from pdf_operations import merge_pdfs, parse_page_ranges, split_pdf
 import analytics
 
 st.set_page_config(page_title="PDF Date Filler", page_icon="📄", layout="centered")
@@ -22,17 +23,24 @@ if "analytics_session_id" not in st.session_state:
 
 if "analytics_view" not in st.session_state:
     st.session_state.analytics_view = False
+if "selected_tool" not in st.session_state:
+    st.session_state.selected_tool = "Date filler"
 
 header, login = st.columns([5, 1])
 with header:
-    st.title("Usage analytics" if st.session_state.analytics_view else "📄 PDF Date Filler")
+    page_title = "Usage analytics" if st.session_state.analytics_view else {
+        "Date filler": "📄 PDF Date Filler",
+        "Merge PDFs": "Merge PDFs",
+        "Split PDF": "Split PDF",
+    }[st.session_state.selected_tool]
+    st.title(page_title)
 with login:
     if st.session_state.analytics_view:
         if st.button("PDF filler"):
             st.session_state.analytics_view = False
             st.session_state.pop("analytics_authenticated", None)
             st.rerun()
-    elif st.button("Admin"):
+    elif st.button("Admin login"):
         st.session_state.analytics_view = True
         st.session_state.pop("analytics_authenticated", None)
         st.rerun()
@@ -41,15 +49,13 @@ if st.session_state.analytics_view:
     analytics.show_dashboard()
     st.stop()
 
-st.write(
-    "Unggah berkas PDF, pilih tanggal, dan sistem akan mengisi label tanggal yang terdeteksi serta menghapus konten PDF interaktif. "
-    "Periksa setiap hasil sebelum mengunduhnya."
+st.radio(
+    "PDF tool",
+    ["Date filler", "Merge PDFs", "Split PDF"],
+    horizontal=True,
+    key="selected_tool",
+    label_visibility="collapsed",
 )
-
-uploaded_files = st.file_uploader(
-    "Upload PDF files", type=["pdf"], accept_multiple_files=True
-)
-selected_date = st.date_input("Date to insert", value=date.today())
 
 
 def uploads_signature(files, chosen_date):
@@ -126,6 +132,210 @@ def show_pdf_preview(pdf_data, key):
         caption=f"Page {page_number} of {page_count}",
         use_container_width=True,
     )
+
+
+if st.session_state.selected_tool == "Merge PDFs":
+    st.write("Combine multiple PDFs in the order you choose.")
+    st.caption(
+        "Annotations, links, and form fields are copied where supported. "
+        "A rewritten PDF may not keep cryptographic signatures valid."
+    )
+    merge_files = st.file_uploader(
+        "Upload PDFs to merge", type=["pdf"], accept_multiple_files=True,
+        key="merge_uploads",
+    )
+    if len(merge_files) < 2:
+        st.info("Upload at least two PDF files to merge.")
+    else:
+        signature = hashlib.sha256()
+        for item in merge_files:
+            signature.update(item.name.encode("utf-8", errors="replace"))
+            signature.update(item.getvalue())
+        signature = signature.hexdigest()
+
+        st.caption(f"{len(merge_files)} PDFs ready. Set their order below.")
+        merge_order = []
+        for position in range(len(merge_files)):
+            selected_index = st.selectbox(
+                f"PDF at position {position + 1}",
+                options=range(len(merge_files)),
+                index=position,
+                format_func=lambda index: f"{index + 1}. {merge_files[index].name}",
+                key=f"merge_order_{signature}_{position}",
+            )
+            merge_order.append(selected_index)
+        result_signature = hashlib.sha256(
+            f"{signature}:{','.join(map(str, merge_order))}".encode()
+        ).hexdigest()
+
+        if len(set(merge_order)) != len(merge_order):
+            st.warning("Choose each PDF exactly once to set the merge order.")
+        elif st.button("Merge PDFs", type="primary"):
+            started_at = time.perf_counter()
+            try:
+                merged_data = merge_pdfs(
+                    [merge_files[index].getvalue() for index in merge_order]
+                )
+                st.session_state.merge_result = {
+                    "signature": result_signature,
+                    "data": merged_data,
+                }
+                if analytics.ready():
+                    analytics.log_operation(
+                        st.session_state.analytics_session_id,
+                        "merge",
+                        len(merge_files),
+                        time.perf_counter() - started_at,
+                        True,
+                    )
+            except Exception as error:
+                st.session_state.merge_result = {
+                    "signature": result_signature,
+                    "error": str(error),
+                }
+                if analytics.ready():
+                    analytics.log_operation(
+                        st.session_state.analytics_session_id,
+                        "merge",
+                        len(merge_files),
+                        time.perf_counter() - started_at,
+                        False,
+                    )
+
+        result = st.session_state.get("merge_result", {})
+        if result.get("signature") == result_signature:
+            if "error" in result:
+                st.error(f"Could not merge these PDFs: {result['error']}")
+            else:
+                st.success("PDFs merged successfully.")
+                st.download_button(
+                    "Download merged PDF",
+                    data=result["data"],
+                    file_name="merged.pdf",
+                    mime="application/pdf",
+                    key=f"download_merged_{result_signature}",
+                )
+                show_pdf_preview(result["data"], key=f"merged_preview_{result_signature}")
+    st.stop()
+
+
+if st.session_state.selected_tool == "Split PDF":
+    st.write("Split one PDF into separate page groups.")
+    st.caption(
+        "Annotations, links, and form fields are copied where supported. "
+        "Links to pages outside a split group may not work, and a rewritten PDF "
+        "may not keep cryptographic signatures valid."
+    )
+    split_file = st.file_uploader(
+        "Upload a PDF to split", type=["pdf"], key="split_upload"
+    )
+    if split_file:
+        split_data = split_file.getvalue()
+        signature = hashlib.sha256(split_data).hexdigest()
+        try:
+            with pymupdf.open(stream=split_data, filetype="pdf") as document:
+                page_count = len(document)
+            if page_count == 0:
+                st.error("This PDF has no pages.")
+                st.stop()
+        except Exception as error:
+            st.error(f"Could not read this PDF: {error}")
+            st.stop()
+
+        st.caption(f"This PDF has {page_count} pages.")
+        split_mode = st.radio(
+            "Split method",
+            ["Every page separately", "Custom page ranges"],
+            horizontal=True,
+            key=f"split_mode_{signature}",
+        )
+        ranges_text = ""
+        if split_mode == "Every page separately":
+            page_ranges = [(page, page) for page in range(1, page_count + 1)]
+            st.caption(f"Creates {page_count} PDF files, one for each page.")
+        else:
+            ranges_text = st.text_area(
+                "One output per line; use a page or inclusive range",
+                placeholder="1-3\n4\n5-7",
+                key=f"split_ranges_{signature}",
+            )
+            page_ranges = None
+        result_signature = hashlib.sha256(
+            f"{signature}:{split_mode}:{ranges_text}".encode()
+        ).hexdigest()
+
+        if st.button("Split PDF", type="primary"):
+            started_at = time.perf_counter()
+            try:
+                if page_ranges is None:
+                    page_ranges = parse_page_ranges(ranges_text, page_count)
+                output_data = split_pdf(split_data, page_ranges)
+                stem = os.path.splitext(os.path.basename(split_file.name))[0]
+                outputs = []
+                for (start, end), data in zip(page_ranges, output_data):
+                    label = f"page_{start}" if start == end else f"pages_{start}-{end}"
+                    outputs.append({
+                        "filename": f"{stem}_{label}.pdf",
+                        "data": data,
+                    })
+                st.session_state.split_result = {
+                    "signature": result_signature,
+                    "outputs": outputs,
+                }
+                if analytics.ready():
+                    analytics.log_operation(
+                        st.session_state.analytics_session_id,
+                        "split",
+                        1,
+                        time.perf_counter() - started_at,
+                        True,
+                    )
+            except Exception as error:
+                st.session_state.split_result = {
+                    "signature": result_signature,
+                    "error": str(error),
+                }
+                if analytics.ready():
+                    analytics.log_operation(
+                        st.session_state.analytics_session_id,
+                        "split",
+                        1,
+                        time.perf_counter() - started_at,
+                        False,
+                    )
+
+        result = st.session_state.get("split_result", {})
+        if result.get("signature") == result_signature:
+            if "error" in result:
+                st.error(f"Could not split this PDF: {result['error']}")
+            else:
+                st.success(f"Created {len(result['outputs'])} PDF file(s).")
+                for index, item in enumerate(result["outputs"]):
+                    st.download_button(
+                        f"Download {item['filename']}",
+                        data=item["data"],
+                        file_name=item["filename"],
+                        mime="application/pdf",
+                        key=f"download_split_{result_signature}_{index}",
+                    )
+                if result["outputs"]:
+                    show_pdf_preview(
+                        result["outputs"][0]["data"],
+                        key=f"split_preview_{result_signature}",
+                    )
+    else:
+        st.info("Upload one PDF file to split.")
+    st.stop()
+
+
+st.write(
+    "Unggah berkas PDF, pilih tanggal, dan sistem akan mengisi label tanggal yang terdeteksi serta menghapus konten PDF interaktif. "
+    "Periksa setiap hasil sebelum mengunduhnya."
+)
+uploaded_files = st.file_uploader(
+    "Upload PDF files", type=["pdf"], accept_multiple_files=True, key="date_fill_uploads"
+)
+selected_date = st.date_input("Date to insert", value=date.today())
 
 
 if uploaded_files:

@@ -93,6 +93,7 @@ def log_job(session_id, files, elapsed_seconds):
         "job",
         session_id,
         {
+            "operation": "date_filler",
             "batch_size": len(files),
             "success_count": successes,
             "failure_count": len(files) - successes,
@@ -101,6 +102,24 @@ def log_job(session_id, files, elapsed_seconds):
             "detection_methods": dict(methods),
             "language_counts": dict(languages),
             "error_counts": dict(errors),
+        },
+    )
+
+
+def log_operation(session_id, operation, input_count, elapsed_seconds, success):
+    _log_event(
+        "job",
+        session_id,
+        {
+            "operation": operation,
+            "batch_size": input_count,
+            "success_count": input_count if success else 0,
+            "failure_count": 0 if success else input_count,
+            "job_success": success,
+            "duration_seconds": round(elapsed_seconds, 3),
+            "detection_methods": {},
+            "language_counts": {},
+            "error_counts": {} if success else {"operation_failed": 1},
         },
     )
 
@@ -165,6 +184,7 @@ def show_dashboard():
     successful_jobs = sum(job.get("job_success", False) for job in jobs)
     durations = [job.get("duration_seconds", 0) for job in jobs]
     batches = [job.get("batch_size", 0) for job in jobs]
+    operations = Counter(job.get("operation", "date_filler") for job in jobs)
 
     columns = st.columns(4)
     columns[0].metric("App sessions (approx. visits)", len(sessions))
@@ -177,6 +197,11 @@ def show_dashboard():
     second_row[1].metric("Average job time", f"{sum(durations) / len(durations):.1f}s" if durations else "—")
     second_row[2].metric("Average batch size", f"{sum(batches) / len(batches):.1f}" if batches else "—")
     second_row[3].metric("Largest batch", max(batches, default=0))
+    st.caption(
+        "Jobs by tool: "
+        f"date filler {operations['date_filler']} · "
+        f"merge {operations['merge']} · split {operations['split']}"
+    )
 
     daily = {}
     languages = Counter()
