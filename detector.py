@@ -18,6 +18,13 @@ ENGLISH_MONTHS = {
     "january", "february", "march", "april", "may", "june",
     "july", "august", "september", "october", "november", "december",
 }
+OCR_LABEL_ALIASES = {
+    "har1": "hari", "harl": "hari",
+    "1ni": "ini", "inl": "ini", "ni": "ini",
+    "tanggai": "tanggal", "tangga1": "tanggal", "tangga": "tanggal",
+    "buian": "bulan", "bu1an": "bulan", "buan": "bulan",
+    "todav": "today", "t0day": "today",
+}
 
 
 def normalize_text(text):
@@ -25,8 +32,13 @@ def normalize_text(text):
     return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
+def _normalize_ocr_label(text):
+    token = normalize_text(text)
+    return OCR_LABEL_ALIASES.get(token, token)
+
+
 def _has_date_markers(words):
-    tokens = {normalize_text(item[4]) for item in words}
+    tokens = {_normalize_ocr_label(item[4]) for item in words}
     has_hari_ini = "hariini" in tokens or {"hari", "ini"}.issubset(tokens)
     # Some Indonesian forms have only "Hari ini" and "tanggal"; the
     # month label is optional on those layouts.
@@ -41,10 +53,12 @@ def _ocr_dpi(page):
     return min(300, max(72, round(4000 * 72 / longest_side)))
 
 
-def _enhanced_ocr_words(page, dpi):
+def _enhanced_ocr_words(page, dpi, clip=None):
+    clip = pymupdf.Rect(page.rect if clip is None else clip)
     scale = dpi / 72
     pixmap = page.get_pixmap(
         matrix=pymupdf.Matrix(scale, scale),
+        clip=clip,
         colorspace=pymupdf.csGRAY,
         alpha=False,
     )
@@ -53,10 +67,7 @@ def _enhanced_ocr_words(page, dpi):
     # OCR the contrast-boosted raster on a same-size page, preserving the
     # coordinates the date writer expects from the original PDF page.
     with pymupdf.open() as enhanced_doc:
-        enhanced_page = enhanced_doc.new_page(
-            width=page.rect.width,
-            height=page.rect.height,
-        )
+        enhanced_page = enhanced_doc.new_page(width=clip.width, height=clip.height)
         enhanced_page.insert_image(
             enhanced_page.rect,
             stream=pixmap.tobytes("png"),
@@ -66,7 +77,17 @@ def _enhanced_ocr_words(page, dpi):
             dpi=dpi,
             full=True,
         )
-        return enhanced_page.get_text("words", textpage=textpage)
+        words = enhanced_page.get_text("words", textpage=textpage)
+        return [
+            (
+                item[0] + clip.x0,
+                item[1] + clip.y0,
+                item[2] + clip.x0,
+                item[3] + clip.y0,
+                *item[4:],
+            )
+            for item in words
+        ]
 
 
 def _extract_words(page):
@@ -80,6 +101,13 @@ def _extract_words(page):
         ocr_words = page.get_text("words", textpage=textpage)
         if _has_date_markers(ocr_words):
             return ocr_words, True
+        # Date labels are usually near the top. A focused retry gives Tesseract
+        # a cleaner layout and more pixels without rasterizing the whole scan.
+        top = pymupdf.Rect(page.rect)
+        top.y1 = top.y0 + top.height * 0.3
+        enhanced_words = _enhanced_ocr_words(page, max(200, dpi), clip=top)
+        if _has_date_markers(enhanced_words):
+            return enhanced_words, True
         return _enhanced_ocr_words(page, dpi), True
     return words, False
 
@@ -98,7 +126,7 @@ def find_date_in_pdf(pdf_path):
             page_words, ocr_used = _extract_words(page)
             for item in page_words:
                 x0, y0, x1, y1, text = item[:5]
-                words.append((normalize_text(text), pymupdf.Rect(x0, y0, x1, y1)))
+                words.append((_normalize_ocr_label(text), pymupdf.Rect(x0, y0, x1, y1)))
 
             hari_words = [rect for text, rect in words if text == "hari"]
             ini_words = [rect for text, rect in words if text == "ini"]
