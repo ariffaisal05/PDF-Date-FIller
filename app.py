@@ -323,6 +323,15 @@ if st.session_state.selected_tool == "Split PDF":
                 st.error(f"Could not split this PDF: {result['error']}")
             else:
                 st.success(f"Created {len(result['outputs'])} PDF file(s).")
+                if result["outputs"]:
+                    components.html(
+                        make_download_all_html(result["outputs"]),
+                        height=58,
+                    )
+                    st.caption(
+                        "Downloads are separate PDF files. Your browser may ask you "
+                        "to allow multiple downloads from this page."
+                    )
                 for index, item in enumerate(result["outputs"]):
                     st.download_button(
                         f"Download {item['filename']}",
