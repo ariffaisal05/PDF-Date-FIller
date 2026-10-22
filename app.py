@@ -29,7 +29,7 @@ if "selected_tool" not in st.session_state:
 header, login = st.columns([5, 1])
 with header:
     page_title = "Usage analytics" if st.session_state.analytics_view else {
-        "Date filler": "📄 PDF Date Filler",
+        "Date filler": "PDF Date Filler",
         "Merge PDFs": "Merge PDFs",
         "Split PDF": "Split PDF",
     }[st.session_state.selected_tool]
