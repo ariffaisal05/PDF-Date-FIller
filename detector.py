@@ -34,16 +34,53 @@ def _has_date_markers(words):
     return has_indonesian_labels or "today" in tokens
 
 
+def _ocr_dpi(page):
+    # Keep unusually large scan pages from being rasterized at tens of
+    # thousands of pixels while retaining the existing 300 DPI for normal PDFs.
+    longest_side = max(page.rect.width, page.rect.height)
+    return min(300, max(72, round(4000 * 72 / longest_side)))
+
+
+def _enhanced_ocr_words(page, dpi):
+    scale = dpi / 72
+    pixmap = page.get_pixmap(
+        matrix=pymupdf.Matrix(scale, scale),
+        colorspace=pymupdf.csGRAY,
+        alpha=False,
+    )
+    pixmap.gamma_with(1.6)
+
+    # OCR the contrast-boosted raster on a same-size page, preserving the
+    # coordinates the date writer expects from the original PDF page.
+    with pymupdf.open() as enhanced_doc:
+        enhanced_page = enhanced_doc.new_page(
+            width=page.rect.width,
+            height=page.rect.height,
+        )
+        enhanced_page.insert_image(
+            enhanced_page.rect,
+            stream=pixmap.tobytes("png"),
+        )
+        textpage = enhanced_page.get_textpage_ocr(
+            language="eng+ind",
+            dpi=dpi,
+            full=True,
+        )
+        return enhanced_page.get_text("words", textpage=textpage)
+
+
 def _extract_words(page):
     """Read selectable text, using OCR if the date labels are not present."""
     words = page.get_text("words")
     if not _has_date_markers(words):
+        dpi = _ocr_dpi(page)
         textpage = page.get_textpage_ocr(
-            language="eng+ind", dpi=300, full=True
+            language="eng+ind", dpi=dpi, full=True
         )
         ocr_words = page.get_text("words", textpage=textpage)
         if _has_date_markers(ocr_words):
             return ocr_words, True
+        return _enhanced_ocr_words(page, dpi), True
     return words, False
 
 
