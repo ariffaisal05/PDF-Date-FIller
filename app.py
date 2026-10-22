@@ -40,7 +40,7 @@ with login:
             st.session_state.analytics_view = False
             st.session_state.pop("analytics_authenticated", None)
             st.rerun()
-    elif st.button("Admin login"):
+    elif st.button("Admin"):
         st.session_state.analytics_view = True
         st.session_state.pop("analytics_authenticated", None)
         st.rerun()
@@ -132,6 +132,19 @@ def show_pdf_preview(pdf_data, key):
         caption=f"Page {page_number} of {page_count}",
         use_container_width=True,
     )
+
+
+def show_pdf_all_pages(pdf_data):
+    """Show every page vertically so the selected PDF can be scrolled through."""
+    with pymupdf.open(stream=pdf_data, filetype="pdf") as doc:
+        page_count = len(doc)
+    st.caption(f"Preview · {page_count} page(s)")
+    for page_index in range(page_count):
+        st.image(
+            render_pdf_page(pdf_data, page_index),
+            caption=f"Page {page_index + 1} of {page_count}",
+            use_container_width=True,
+        )
 
 
 if st.session_state.selected_tool == "Merge PDFs":
@@ -319,10 +332,13 @@ if st.session_state.selected_tool == "Split PDF":
                         key=f"download_split_{result_signature}_{index}",
                     )
                 if result["outputs"]:
-                    show_pdf_preview(
-                        result["outputs"][0]["data"],
-                        key=f"split_preview_{result_signature}",
+                    preview_index = st.selectbox(
+                        "Preview split file",
+                        options=range(len(result["outputs"])),
+                        format_func=lambda index: result["outputs"][index]["filename"],
+                        key=f"split_preview_file_{result_signature}",
                     )
+                    show_pdf_all_pages(result["outputs"][preview_index]["data"])
     else:
         st.info("Upload one PDF file to split.")
     st.stop()

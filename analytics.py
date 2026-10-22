@@ -203,6 +203,77 @@ def show_dashboard():
         f"merge {operations['merge']} · split {operations['split']}"
     )
 
+    tool_names = {
+        "date_filler": "Date filler",
+        "merge": "Merge",
+        "split": "Split",
+    }
+    tool_stats = {
+        operation: {"jobs": 0, "successful": 0, "failed": 0, "seconds": 0.0}
+        for operation in tool_names
+    }
+    for job in jobs:
+        operation = job.get("operation", "date_filler")
+        if operation not in tool_stats:
+            continue
+        stats = tool_stats[operation]
+        stats["jobs"] += 1
+        stats["successful"] += bool(job.get("job_success", False))
+        stats["failed"] += not job.get("job_success", False)
+        stats["seconds"] += job.get("duration_seconds", 0)
+
+    tool_rows = [
+        {
+            "Tool": tool_names[operation],
+            "Jobs": stats["jobs"],
+            "Successful": stats["successful"],
+            "Failed": stats["failed"],
+            "AverageSeconds": round(stats["seconds"] / stats["jobs"], 2)
+            if stats["jobs"] else 0,
+        }
+        for operation, stats in tool_stats.items()
+    ]
+    st.subheader("Job type comparison")
+    tool_chart = (
+        alt.Chart(alt.Data(values=tool_rows))
+        .mark_bar(size=56)
+        .encode(
+            x=alt.X("Tool:N", title=None, sort=["Date filler", "Merge", "Split"]),
+            y=alt.Y("Jobs:Q", title="Jobs", scale=alt.Scale(zero=True)),
+            color=alt.Color(
+                "Tool:N",
+                title=None,
+                scale=alt.Scale(
+                    domain=["Date filler", "Merge", "Split"],
+                    range=["#60A5FA", "#34D399", "#F97316"],
+                ),
+            ),
+            tooltip=[
+                alt.Tooltip("Tool:N", title="Tool"),
+                alt.Tooltip("Jobs:Q", title="Jobs"),
+                alt.Tooltip("Successful:Q", title="Successful"),
+                alt.Tooltip("Failed:Q", title="Failed"),
+                alt.Tooltip("AverageSeconds:Q", title="Average time (s)"),
+            ],
+        )
+        .properties(height=280)
+    )
+    st.altair_chart(tool_chart, use_container_width=True)
+    st.dataframe(
+        [
+            {
+                "Tool": row["Tool"],
+                "Jobs": row["Jobs"],
+                "Successful": row["Successful"],
+                "Failed": row["Failed"],
+                "Average time (s)": row["AverageSeconds"],
+            }
+            for row in tool_rows
+        ],
+        hide_index=True,
+        use_container_width=True,
+    )
+
     daily = {}
     languages = Counter()
     methods = Counter()
