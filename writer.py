@@ -21,8 +21,10 @@ def add_date_text(
         if old_value_rects:
             if ocr_used:
                 # OCR words live in the page image, so text redaction alone
-                # cannot erase them. Paint over just the detected date glyphs.
+                # cannot erase them. OCR coordinates follow the displayed page
+                # orientation; convert them before drawing on rotated pages.
                 for old_rect in old_value_rects:
+                    old_rect = pymupdf.Rect(old_rect) * page.derotation_matrix
                     cover = pymupdf.Rect(
                         old_rect.x0 - 1,
                         old_rect.y0 - 1,
@@ -63,16 +65,21 @@ def add_date_text(
             if ocr_used:
                 x_position = rect.x1 + max(6, rect.height * 0.3)
                 y_position = rect.y1 - rect.height * 0.36
+                point = pymupdf.Point(x_position, y_position) * page.derotation_matrix
+                rotation = (360 - page.rotation) % 360
             else:
                 x_position = rect.x1 + 3
                 y_position = rect.y1 - rect.height * 0.233
+                point = (x_position, y_position)
+                rotation = 0
             page.insert_text(
-                (x_position, y_position),
+                point,
                 str(value),
                 fontsize=font_size,
                 fontname="CalibriDate",
                 color=(0, 0, 0),
                 overlay=True,
+                rotate=rotation,
             )
 
         doc.save(output_path, garbage=4, clean=True, deflate=True)
