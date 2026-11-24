@@ -93,8 +93,17 @@ def _enhanced_ocr_words(page, dpi, clip=None):
 def _extract_words(page):
     """Read selectable text, using OCR if the date labels are not present."""
     words = page.get_text("words")
+    if _has_date_markers(words):
+        return words, False
+
+    dpi = _ocr_dpi(page)
+    if page.rotation:
+        # Built-in OCR can return coordinates in the unrotated media-box frame.
+        # OCR a rendered page instead so detections match the displayed page,
+        # which the writer converts back when placing text.
+        return _enhanced_ocr_words(page, dpi), True
+
     if not _has_date_markers(words):
-        dpi = _ocr_dpi(page)
         textpage = page.get_textpage_ocr(
             language="eng+ind", dpi=dpi, full=True
         )
