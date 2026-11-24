@@ -1,12 +1,41 @@
 import os
 import tempfile
 
+import pymupdf
+
 from detector import find_date_in_pdf
 from cleaner import clean_pdf
 from writer import add_date_text
 
 
+def _normalize_page_rotation(input_path, output_path):
+    with pymupdf.open(input_path) as doc:
+        if not any(page.rotation for page in doc):
+            return input_path
+
+        for page in doc:
+            if page.rotation:
+                page.remove_rotation()
+
+        doc.save(output_path, garbage=4, clean=True, deflate=True)
+    return output_path
+
+
 def process_pdf(
+    input_path,
+    output_path,
+    selected_date
+):
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_path = _normalize_page_rotation(
+            input_path,
+            os.path.join(temp_dir, "upright.pdf"),
+        )
+        return _process_pdf(input_path, output_path, selected_date)
+
+
+def _process_pdf(
     input_path,
     output_path,
     selected_date
