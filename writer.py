@@ -30,7 +30,7 @@ def add_date_text(
                         old_rect.y0 - 1,
                         old_rect.x1 + 1,
                         old_rect.y1 + 1,
-                    ) & page.rect
+                    )
                     page.draw_rect(
                         cover, color=None, fill=(1, 1, 1), overlay=True
                     )
@@ -63,6 +63,38 @@ def add_date_text(
             # the established 11 pt size for selectable-text PDFs.
             font_size = max(11, rect.height * 0.88) if ocr_used else 11
             if ocr_used:
+                # Clear the expected value area even when OCR cannot read the
+                # handwriting. Bound the weekday field by the next printed
+                # label so this patch cannot cover "tanggal".
+                clear_x0 = rect.x1 + 2
+                if label == "hari_ini" and "tanggal" in label_rects:
+                    clear_x1 = label_rects["tanggal"].x0 - 2
+                else:
+                    clear_width = pymupdf.get_text_length(
+                        str(value), fontname="CalibriDate", fontsize=font_size
+                    ) + 8
+                    clear_x1 = rect.x1 + clear_width
+                    next_label = {
+                        "tanggal": "bulan",
+                    }.get(label)
+                    if next_label in label_rects:
+                        clear_x1 = min(
+                            clear_x1, label_rects[next_label].x0 - 2
+                        )
+                if clear_x1 > clear_x0:
+                    clear_rect = pymupdf.Rect(
+                        clear_x0,
+                        rect.y0 - rect.height * 0.35,
+                        clear_x1,
+                        rect.y1 + rect.height * 0.35,
+                    ) * page.derotation_matrix
+                    page.draw_rect(
+                        clear_rect,
+                        color=None,
+                        fill=(1, 1, 1),
+                        overlay=True,
+                    )
+
                 x_position = rect.x1 + max(6, rect.height * 0.3)
                 y_position = rect.y1 - rect.height * 0.36
                 point = pymupdf.Point(x_position, y_position) * page.derotation_matrix
