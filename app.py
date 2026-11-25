@@ -161,6 +161,24 @@ def ocr_page_text(pdf_data, page_index):
         return page.get_text("text", textpage=textpage).strip()
 
 
+def make_ocr_pdf(pdf_data):
+    """Create a searchable, image-based PDF using the app's OCR engine."""
+    output = pymupdf.open()
+    try:
+        with pymupdf.open(stream=pdf_data, filetype="pdf") as source:
+            for page in source:
+                if page.rotation:
+                    page.remove_rotation()
+                pixmap = page.get_pixmap(dpi=300, colorspace=pymupdf.csRGB, alpha=False)
+                with pymupdf.open(
+                    "pdf", pixmap.pdfocr_tobytes(language="eng+ind")
+                ) as ocr_page:
+                    output.insert_pdf(ocr_page)
+        return output.tobytes(deflate=True, garbage=4)
+    finally:
+        output.close()
+
+
 if st.session_state.selected_tool == "OCR test":
     st.write("Upload a PDF to see the text the app's OCR can read.")
     ocr_file = st.file_uploader("Upload a PDF", type=["pdf"], key="ocr_test_upload")
@@ -178,12 +196,25 @@ if st.session_state.selected_tool == "OCR test":
                     "page": page_number,
                     "text": ocr_page_text(ocr_data, page_number - 1),
                 }
+            if st.button("Create OCR PDF"):
+                st.session_state.ocr_test_pdf = {
+                    "file": hashlib.sha256(ocr_data).hexdigest(),
+                    "data": make_ocr_pdf(ocr_data),
+                }
 
             result = st.session_state.get("ocr_test_result")
             if result and result["file"] == hashlib.sha256(ocr_data).hexdigest() and result["page"] == page_number:
                 st.subheader("OCR text")
                 st.text_area("Extracted text", result["text"], height=320)
                 show_pdf_preview(ocr_data, key="ocr_test_preview")
+            ocr_pdf = st.session_state.get("ocr_test_pdf")
+            if ocr_pdf and ocr_pdf["file"] == hashlib.sha256(ocr_data).hexdigest():
+                st.download_button(
+                    "Download OCR PDF",
+                    data=ocr_pdf["data"],
+                    file_name=f"{os.path.splitext(ocr_file.name)[0]}_ocr.pdf",
+                    mime="application/pdf",
+                )
         except Exception as error:
             st.error(f"Could not OCR this PDF: {error}")
     else:

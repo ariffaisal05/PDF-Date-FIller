@@ -2,6 +2,7 @@ import pymupdf
 
 
 CALIBRI_FONT_PATH = "calibri.ttf"
+CALIBRI_FONT = pymupdf.Font(fontfile=CALIBRI_FONT_PATH)
 
 def add_date_text(
     input_path,
@@ -70,8 +71,8 @@ def add_date_text(
                 if label == "hari_ini" and "tanggal" in label_rects:
                     clear_x1 = label_rects["tanggal"].x0 - 2
                 else:
-                    clear_width = pymupdf.get_text_length(
-                        str(value), fontname="CalibriDate", fontsize=font_size
+                    clear_width = CALIBRI_FONT.text_length(
+                        str(value), fontsize=font_size
                     ) + 8
                     clear_x1 = rect.x1 + clear_width
                     next_label = {
