@@ -30,6 +30,7 @@ header, login = st.columns([5, 1])
 with header:
     page_title = "Usage analytics" if st.session_state.analytics_view else {
         "Date filler": "📄 PDF Date Filler",
+        "OCR test": "OCR test",
         "Merge PDFs": "Merge PDFs",
         "Split PDF": "Split PDF",
     }[st.session_state.selected_tool]
@@ -51,7 +52,7 @@ if st.session_state.analytics_view:
 
 st.radio(
     "PDF tool",
-    ["Date filler", "Merge PDFs", "Split PDF"],
+    ["Date filler", "OCR test", "Merge PDFs", "Split PDF"],
     horizontal=True,
     key="selected_tool",
     label_visibility="collapsed",
@@ -145,6 +146,49 @@ def show_pdf_all_pages(pdf_data):
             caption=f"Page {page_index + 1} of {page_count}",
             use_container_width=True,
         )
+
+
+def ocr_page_text(pdf_data, page_index):
+    """Return the OCR text for one page in its displayed orientation."""
+    with pymupdf.open(stream=pdf_data, filetype="pdf") as doc:
+        page = doc[page_index]
+        if page.rotation:
+            page.remove_rotation()
+            page = doc[page_index]
+        textpage = page.get_textpage_ocr(
+            language="eng+ind", dpi=300, full=True
+        )
+        return page.get_text("text", textpage=textpage).strip()
+
+
+if st.session_state.selected_tool == "OCR test":
+    st.write("Upload a PDF to see the text the app's OCR can read.")
+    ocr_file = st.file_uploader("Upload a PDF", type=["pdf"], key="ocr_test_upload")
+    if ocr_file:
+        ocr_data = ocr_file.getvalue()
+        try:
+            with pymupdf.open(stream=ocr_data, filetype="pdf") as document:
+                page_count = len(document)
+            page_number = st.selectbox(
+                "Page to OCR", range(1, page_count + 1), key="ocr_test_page"
+            )
+            if st.button("Run OCR", type="primary"):
+                st.session_state.ocr_test_result = {
+                    "file": hashlib.sha256(ocr_data).hexdigest(),
+                    "page": page_number,
+                    "text": ocr_page_text(ocr_data, page_number - 1),
+                }
+
+            result = st.session_state.get("ocr_test_result")
+            if result and result["file"] == hashlib.sha256(ocr_data).hexdigest() and result["page"] == page_number:
+                st.subheader("OCR text")
+                st.text_area("Extracted text", result["text"], height=320)
+                show_pdf_preview(ocr_data, key="ocr_test_preview")
+        except Exception as error:
+            st.error(f"Could not OCR this PDF: {error}")
+    else:
+        st.info("Upload one PDF to test OCR.")
+    st.stop()
 
 
 if st.session_state.selected_tool == "Merge PDFs":
