@@ -59,10 +59,8 @@ def add_date_text(
 
             # The supplied form uses Calibri 11.05 pt. Its text baseline is
             # about 23.3% of the word-box height above the lower edge.
-            # OCR page coordinates follow the scan's pixel-sized page. Scale
-            # only OCR insertions to the detected printed label height; keep
-            # the established 11 pt size for selectable-text PDFs.
-            font_size = min(11, rect.height * 0.88) if ocr_used else 11
+            # Keep all inserted dates at the established 11 pt size.
+            font_size = 11
             if ocr_used:
                 # Clear the expected value area even when OCR cannot read the
                 # handwriting. Bound the weekday field by the next printed
