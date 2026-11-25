@@ -62,7 +62,7 @@ def add_date_text(
             # OCR page coordinates follow the scan's pixel-sized page. Scale
             # only OCR insertions to the detected printed label height; keep
             # the established 11 pt size for selectable-text PDFs.
-            font_size = max(11, rect.height * 0.88) if ocr_used else 11
+            font_size = min(11, rect.height * 0.88) if ocr_used else 11
             if ocr_used:
                 # Clear the expected value area even when OCR cannot read the
                 # handwriting. Bound the weekday field by the next printed
