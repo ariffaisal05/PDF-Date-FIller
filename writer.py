@@ -97,7 +97,9 @@ def add_date_text(
                     )
 
                 x_position = rect.x1 + max(6, rect.height * 0.3)
-                y_position = rect.y1 - rect.height * 0.36
+                # The font is capped at 11 pt, so align its baseline from the
+                # actual inserted size instead of the taller OCR word box.
+                y_position = rect.y1 - font_size * 0.24
                 point = pymupdf.Point(x_position, y_position) * page.derotation_matrix
                 rotation = (360 - page.rotation) % 360
             else:
