@@ -46,6 +46,16 @@ def _has_date_markers(words):
     return has_indonesian_labels or "today" in tokens
 
 
+def _is_image_backed_page(page):
+    """Whether one page image supplies almost all visible page content."""
+    page_area = page.rect.get_area()
+    for image in page.get_images(full=True):
+        for rect in page.get_image_rects(image[0]):
+            if (rect & page.rect).get_area() >= page_area * 0.9:
+                return True
+    return False
+
+
 def _ocr_dpi(page):
     # Keep unusually large scan pages from being rasterized at tens of
     # thousands of pixels while retaining the existing 300 DPI for normal PDFs.
@@ -94,7 +104,9 @@ def _extract_words(page):
     """Read selectable text, using OCR if the date labels are not present."""
     words = page.get_text("words")
     if _has_date_markers(words):
-        return words, False
+        # OCR test output carries selectable text over a full-page image. Its
+        # old handwritten values remain pixels and must use the scan writer.
+        return words, _is_image_backed_page(page)
 
     dpi = _ocr_dpi(page)
     if page.rotation:
