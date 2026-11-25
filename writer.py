@@ -3,6 +3,7 @@ import pymupdf
 
 CALIBRI_FONT_PATH = "calibri.ttf"
 CALIBRI_FONT = pymupdf.Font(fontfile=CALIBRI_FONT_PATH)
+STANDARD_A4_WIDTH = 595.2
 
 def add_date_text(
     input_path,
@@ -57,10 +58,9 @@ def add_date_text(
             if rect is None or not value:
                 continue
 
-            # The supplied form uses Calibri 11.05 pt. Its text baseline is
-            # about 23.3% of the word-box height above the lower edge.
-            # Keep all inserted dates at the established 11 pt size.
-            font_size = 11
+            # Keep dates visually at 11 pt. Some scans use pixels as PDF
+            # points, so scale to the width of a standard A4 page.
+            font_size = 11 * page.rect.width / STANDARD_A4_WIDTH if ocr_used else 11
             if ocr_used:
                 # Clear the expected value area even when OCR cannot read the
                 # handwriting. Bound the weekday field by the next printed
