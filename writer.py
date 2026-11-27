@@ -60,7 +60,7 @@ def add_date_text(
 
             # Keep dates visually at 11 pt. Some scans use pixels as PDF
             # points, so scale to the width of a standard A4 page.
-            font_size = 11 * page.rect.width / STANDARD_A4_WIDTH if ocr_used else 11
+            font_size = max(9, min(11, rect.height * 0.88)) * page.rect.width / STANDARD_A4_WIDTH if ocr_used else 11
             if ocr_used:
                 # Clear the expected value area even when OCR cannot read the
                 # handwriting. Bound the weekday field by the next printed
